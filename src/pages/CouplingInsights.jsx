@@ -1,112 +1,43 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Bar, Line } from "react-chartjs-2";
 import Select from "react-select";
 import "chart.js/auto";
+import axios from "axios";
 
 const CouplingInsights = () => {
-    const allInsights = [
-        { service: "Service-A", name: "High Fan-Out", count: 5, severity: "High", date: "2024-11-20" },
-        { service: "Service-B", name: "Excessive Dependency", count: 3, severity: "Medium", date: "2024-11-18" },
-        { service: "Service-C", name: "Service Bottleneck", count: 2, severity: "High", date: "2024-11-17" },
-        { service: "Service-D", name: "High Fan-Out", count: 4, severity: "Medium", date: "2024-11-16" },
-        { service: "Service-B", name: "Service Bottleneck", count: 1, severity: "Low", date: "2024-11-15" },
-    ];
+    const [allServices, setAllServices] = useState([]);
+    const [selectedServices, setSelectedServices] = useState([]);
+    const [absoluteImportance, setAbsoluteImportance] = useState({});
+    const [absoluteDependence, setAbsoluteDependence] = useState({});
 
-    const allServices = [...new Set(allInsights.map((insight) => insight.service))];
-    const allPatterns = [...new Set(allInsights.map((insight) => insight.name))];
+    useEffect(() => {
+    
+        const fetchData = async () => {
+            try {
+                const servicesResponse = await axios.get("http://localhost:8000/api/services/recorded");
+                const importanceResponse = await axios.get("http://localhost:8000/api/coupling/absolute-importance-of");
+                const dependenceResponse = await axios.get("http://localhost:8000/api/coupling/absolute-dependence-of");
 
-    const serviceOptions = allServices.map((service) => ({
-        value: service,
-        label: service,
-    }));
+                setAllServices(servicesResponse.data.services);
+                setAbsoluteImportance(importanceResponse.data.data);
+                setAbsoluteDependence(dependenceResponse.data.data);
 
-    const patternOptions = allPatterns.map((pattern) => ({
-        value: pattern,
-        label: pattern,
-    }));
+                const serviceOptions = servicesResponse.data.services.map((service) => ({
+                    value: service,
+                    label: service,
+                }));
+                setSelectedServices(serviceOptions);
+            } catch (error) {
+                console.error("Error fetching data", error);
+            }
+        };
 
-    const [selectedServices, setSelectedServices] = useState(serviceOptions);
-    const [selectedPatterns, setSelectedPatterns] = useState(patternOptions);
-
-    const filteredInsights = allInsights.filter(
-        (insight) =>
-            selectedServices.some((selected) => selected.value === insight.service) &&
-            selectedPatterns.some((selected) => selected.value === insight.name)
-    );
-
-    // Helper function to create chart data
-    const createChartData = (type) => {
-        if (type === "bar") {
-            return {
-                labels: [...new Set(filteredInsights.map((insight) => insight.service))],
-                datasets: selectedPatterns.map((pattern) => ({
-                    label: pattern.value,
-                    data: filteredInsights
-                        .filter((insight) => insight.name === pattern.value)
-                        .map((insight) => insight.count),
-                    backgroundColor: `rgba(${Math.floor(Math.random() * 255)}, ${Math.floor(
-                        Math.random() * 255
-                    )}, ${Math.floor(Math.random() * 255)}, 0.6)`,
-                })),
-            };
-        }
-        if (type === "severity") {
-            return {
-                labels: allPatterns,
-                datasets: [
-                    {
-                        label: "High",
-                        data: allPatterns.map(
-                            (pattern) =>
-                                filteredInsights.filter(
-                                    (insight) => insight.name === pattern && insight.severity === "High"
-                                ).length
-                        ),
-                        backgroundColor: "red",
-                    },
-                    {
-                        label: "Medium",
-                        data: allPatterns.map(
-                            (pattern) =>
-                                filteredInsights.filter(
-                                    (insight) => insight.name === pattern && insight.severity === "Medium"
-                                ).length
-                        ),
-                        backgroundColor: "orange",
-                    },
-                    {
-                        label: "Low",
-                        data: allPatterns.map(
-                            (pattern) =>
-                                filteredInsights.filter(
-                                    (insight) => insight.name === pattern && insight.severity === "Low"
-                                ).length
-                        ),
-                        backgroundColor: "green",
-                    },
-                ],
-            };
-        }
-        if (type === "line") {
-            return {
-                labels: [...new Set(filteredInsights.map((insight) => insight.date))].sort(),
-                datasets: selectedPatterns.map((pattern) => ({
-                    label: pattern.value,
-                    data: filteredInsights
-                        .filter((insight) => insight.name === pattern.value)
-                        .map((insight) => insight.count),
-                    borderColor: `rgba(${Math.floor(Math.random() * 255)}, ${Math.floor(
-                        Math.random() * 255
-                    )}, ${Math.floor(Math.random() * 255)}, 1)`,
-                    fill: false,
-                })),
-            };
-        }
-    };
+        fetchData();
+    }, []);
 
     return (
         <div className="p-6 space-y-6">
-            <h1 className="text-2xl font-bold">Anti-Pattern Insights</h1>
+            <h1 className="text-2xl font-bold">Coupling Insights</h1>
 
             {/* Filters */}
             <div className="flex gap-6">
@@ -114,21 +45,10 @@ const CouplingInsights = () => {
                     <h2 className="text-lg font-semibold">Select Services</h2>
                     <Select
                         isMulti
-                        options={serviceOptions}
+                        options={allServices.map((service) => ({ value: service, label: service }))}
                         value={selectedServices}
                         onChange={(selected) => setSelectedServices(selected)}
                         placeholder="Search and select services..."
-                        isSearchable
-                    />
-                </div>
-                <div className="flex-1">
-                    <h2 className="text-lg font-semibold">Select Anti-Patterns</h2>
-                    <Select
-                        isMulti
-                        options={patternOptions}
-                        value={selectedPatterns}
-                        onChange={(selected) => setSelectedPatterns(selected)}
-                        placeholder="Search and select anti-patterns..."
                         isSearchable
                     />
                 </div>
@@ -138,9 +58,18 @@ const CouplingInsights = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {/* Chart 1 */}
                 <div className="bg-gray-100 p-4 rounded shadow">
-                    <h2 className="text-lg font-bold mb-4">Service-Specific Anti-Pattern Insights</h2>
+                    <h2 className="text-lg font-bold mb-4">Absolute Importance</h2>
                     <Bar
-                        data={createChartData("bar")}
+                        data={{
+                            labels: Object.keys(absoluteImportance),
+                            datasets: [
+                                {
+                                    label: "Importance",
+                                    data: Object.values(absoluteImportance),
+                                    backgroundColor: "rgba(75, 192, 192, 0.6)",
+                                },
+                            ],
+                        }}
                         options={{
                             responsive: true,
                             plugins: { legend: { position: "top" } },
@@ -150,33 +79,18 @@ const CouplingInsights = () => {
 
                 {/* Chart 2 */}
                 <div className="bg-gray-100 p-4 rounded shadow">
-                    <h2 className="text-lg font-bold mb-4">Anti-Pattern Severity</h2>
+                    <h2 className="text-lg font-bold mb-4">Absolute Dependence</h2>
                     <Bar
-                        data={createChartData("severity")}
-                        options={{
-                            responsive: true,
-                            plugins: { legend: { position: "top" } },
+                        data={{
+                            labels: Object.keys(absoluteDependence),
+                            datasets: [
+                                {
+                                    label: "Dependence",
+                                    data: Object.values(absoluteDependence),
+                                    backgroundColor: "rgba(153, 102, 255, 0.6)",
+                                },
+                            ],
                         }}
-                    />
-                </div>
-
-                {/* Chart 3 */}
-                <div className="bg-gray-100 p-4 rounded shadow">
-                    <h2 className="text-lg font-bold mb-4">Anti-Pattern Trends</h2>
-                    <Line
-                        data={createChartData("line")}
-                        options={{
-                            responsive: true,
-                            plugins: { legend: { position: "top" } },
-                        }}
-                    />
-                </div>
-
-                {/* Chart 4 */}
-                <div className="bg-gray-100 p-4 rounded shadow">
-                    <h2 className="text-lg font-bold mb-4">Service Impact Analysis</h2>
-                    <Bar
-                        data={createChartData("bar")}
                         options={{
                             responsive: true,
                             plugins: { legend: { position: "top" } },
@@ -195,7 +109,7 @@ const CouplingInsights = () => {
                         const url = URL.createObjectURL(blob);
                         const a = document.createElement("a");
                         a.href = url;
-                        a.download = "anti-pattern-insights.json";
+                        a.download = "coupling-insights.json";
                         a.click();
                     }}
                     className="px-4 py-2 bg-teal-500 text-white rounded hover:bg-teal-600"
